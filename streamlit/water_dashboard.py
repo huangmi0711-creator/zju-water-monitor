@@ -33,7 +33,7 @@ def set_apple_icon(image_url):
     st.markdown(apple_icon_code, unsafe_allow_html=True)
 
 # ⚠️ 把下面这个链接换成你刚才在 GitHub 复制的 "Raw" 链接！
-ICON_URL = "https://github.com/huangmi0711-creator/zju-water-monitor/edit/main/app_icon.png.jpg"
+ICON_URL = "https://github.com/huangmi0711-creator/zju-water-monitor/blob/e8cdaa0b4702f4abda567d588365cfc44b040f06/app_icon.png.jpg"
 
 # 执行注入
 set_apple_icon(ICON_URL)
