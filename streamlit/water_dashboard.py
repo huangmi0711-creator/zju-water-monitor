@@ -2,28 +2,25 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import pydeck as pdk
-import plotly.express as px  # 👈 引入 Plotly 绘图库
+import plotly.express as px
 from shapely.geometry import Point, shape
 import json
 import time
+import os  # 👈 新增这一行！
 
-import streamlit as st
-# ... 其他 import ...
-
-# 1. 设置浏览器标签页图标 (电脑上看)
+# ==========================================
+# 1. 页面配置 (必须放在最第一行，只写一次)
+# ==========================================
 st.set_page_config(
-    page_title="ZJU Water Monitor",
+    page_title="ZJU Water Monitor Pro", # 标题合并过来了
     layout="wide",
-    page_icon="🌊" # 这里也可以填图片文件名，比如 "app_icon.png"
+    page_icon="🌊"
 )
 
 # ==========================================
-# 🍎 核心魔法：设置 iPhone 主屏幕图标 (Web Clip Icon)
+# 🍎 核心魔法：设置 iPhone 主屏幕图标
 # ==========================================
 def set_apple_icon(image_url):
-    """
-    向网页头部注入 HTML 代码，告诉 iOS 添加到主屏幕时使用哪张图。
-    """
     apple_icon_code = f"""
     <head>
         <link rel="apple-touch-icon" sizes="180x180" href="{image_url}">
@@ -32,25 +29,30 @@ def set_apple_icon(image_url):
     """
     st.markdown(apple_icon_code, unsafe_allow_html=True)
 
-# ⚠️ 把下面这个链接换成你刚才在 GitHub 复制的 "Raw" 链接！
-ICON_URL = "https://github.com/huangmi0711-creator/zju-water-monitor/blob/e8cdaa0b4702f4abda567d588365cfc44b040f06/app_icon.png.jpg"
+# ⚠️ 修正后的链接 (使用 raw 链接，指向 main 分支)
+# 请务必去 GitHub 确认你的文件名是 .png 还是 .png.jpg
+# 这里我暂时帮你写成你原始代码里的样子，如果图标不显示，试着去掉 ".jpg"
+ICON_URL = "https://raw.githubusercontent.com/huangmi0711-creator/zju-water-monitor/main/app_icon.png"
+# 或者如果你的文件名真的叫 app_icon.png.jpg，就用下面这行：
+# ICON_URL = "https://raw.githubusercontent.com/huangmi0711-creator/zju-water-monitor/main/app_icon.png.jpg"
 
-# 执行注入
 set_apple_icon(ICON_URL)
 
-# ... 下面接你原来的代码 ...
-
-st.set_page_config(page_title="ZJU Water Monitor Pro", layout="wide")
-
-
 # ==========================================
-# 1. 地图加载 (保持不变)
+# 2. 地图加载 (修改版：自动定位文件路径)
 # ==========================================
 @st.cache_data
 def load_lake_boundary():
     try:
-        with open('qizhen_lake.geojson', 'r', encoding='utf-8') as f:
+        # 1. 获取当前脚本 (water_dashboard.py) 所在的绝对目录
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        # 2. 拼接出 geojson 文件的完整路径
+        geojson_path = os.path.join(current_dir, 'qizhen_lake.geojson')
+
+        # 3. 打开文件
+        with open(geojson_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
+
         max_area = 0
         lake_polygon = None
         for feature in data['features']:
@@ -59,10 +61,12 @@ def load_lake_boundary():
                 max_area = geom.area
                 lake_polygon = geom
         return lake_polygon
-    except:
-        st.error("❌ 找不到 qizhen_lake.geojson")
+    except FileNotFoundError:
+        st.error(f"❌ 找不到文件: {geojson_path}")
         st.stop()
-
+    except Exception as e:
+        st.error(f"❌ 读取文件出错: {e}")
+        st.stop()
 
 LAKE_POLYGON = load_lake_boundary()
 
@@ -73,9 +77,8 @@ else:
     x, y = max(LAKE_POLYGON.geoms, key=lambda a: a.area).exterior.coords.xy
     LAKE_COORDS_FOR_MAP = [[lon, lat] for lon, lat in zip(x, y)]
 
-
 # ==========================================
-# 2. 机器人逻辑 (保持不变)
+# 3. 机器人逻辑
 # ==========================================
 class CampusBot:
     def __init__(self):
@@ -109,16 +112,14 @@ class CampusBot:
             'DO': round(self.do, 2)
         }
 
-
 def generate_report(df):
     if df.empty: return "暂无数据"
     avg_do = df['DO'].mean()
     status = "🟢 水质优良" if avg_do >= 5.0 else "🟡 轻度缺氧" if avg_do >= 3.0 else "🔴 严重缺氧"
     return f"**状态**: {status}\n\n平均DO: `{avg_do:.2f}` | 平均pH: `{df['pH'].mean():.2f}`"
 
-
 # ==========================================
-# 3. 页面布局
+# 4. 页面布局
 # ==========================================
 if 'bot' not in st.session_state:
     st.session_state.bot = CampusBot()
@@ -170,30 +171,28 @@ with col_right:
         tooltip={"text": "DO: {DO}"}
     ))
 
-    # --- 🔥 重点修改：使用 Plotly 绘制高颜值图表 ---
+    # 图表部分
     if not df.empty:
         st.divider()
         chart_c1, chart_c2 = st.columns(2)
 
         with chart_c1:
-            # 绘制 pH 面积图
             fig_ph = px.area(df, x='Time', y='pH', title="pH 趋势", markers=True)
-            fig_ph.update_traces(line_color='#3498db', fillcolor='rgba(52, 152, 219, 0.2)')  # 蓝色
+            fig_ph.update_traces(line_color='#3498db', fillcolor='rgba(52, 152, 219, 0.2)')
             fig_ph.update_layout(
-                xaxis=dict(showgrid=False, nticks=5),  # 👈 关键：强制只显示5个刻度
+                xaxis=dict(showgrid=False, nticks=5),
                 yaxis=dict(showgrid=True, gridcolor='#eee'),
                 height=250,
-                margin=dict(l=20, r=20, t=30, b=20),  # 去掉多余边距
+                margin=dict(l=20, r=20, t=30, b=20),
                 plot_bgcolor='white'
             )
             st.plotly_chart(fig_ph, use_container_width=True)
 
         with chart_c2:
-            # 绘制 DO 面积图
             fig_do = px.area(df, x='Time', y='DO', title="溶解氧 (DO) 趋势", markers=True)
-            fig_do.update_traces(line_color='#2ecc71', fillcolor='rgba(46, 204, 113, 0.2)')  # 绿色
+            fig_do.update_traces(line_color='#2ecc71', fillcolor='rgba(46, 204, 113, 0.2)')
             fig_do.update_layout(
-                xaxis=dict(showgrid=False, nticks=5),  # 👈 关键：强制只显示5个刻度
+                xaxis=dict(showgrid=False, nticks=5),
                 yaxis=dict(showgrid=True, gridcolor='#eee'),
                 height=250,
                 margin=dict(l=20, r=20, t=30, b=20),
